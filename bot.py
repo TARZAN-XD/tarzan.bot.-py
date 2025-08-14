@@ -2,13 +2,12 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
+import os
 
-# ضع هنا توكن البوت الخاص بك
 TOKEN = "7468967312:AAGeEoeJaD1WarTcLhbRBmbil1kD-Mz3khE"
 
 logging.basicConfig(level=logging.INFO)
 
-# لتخزين الرابط المؤقت ونوع التحميل
 user_data = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -23,7 +22,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-
     if query.data == "download_video":
         user_data[user_id] = "video"
         await query.edit_message_text("✅ أرسل رابط الفيديو للتحميل.")
@@ -36,11 +34,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if user_id not in user_data:
-        await update.message.reply_text("❌ استخدم /start أولاً لاختيار نوع التحميل.")
+        await update.message.reply_text("❌ استخدم /start أولاً.")
         return
 
     choice = user_data[user_id]
-    await update.message.reply_text("⏳ جاري التحميل، انتظر قليلاً...")
+    await update.message.reply_text("⏳ جاري التحميل...")
 
     ydl_opts = {}
     if choice == "audio":
@@ -65,14 +63,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(text, download=True)
             filename = ydl.prepare_filename(info)
-        
         await update.message.reply_document(document=open(filename, "rb"))
+        os.remove(filename)  # حذف الملف بعد الإرسال لتوفير مساحة
     except Exception as e:
-        await update.message.reply_text(f"❌ حدث خطأ أثناء التحميل: {e}")
+        await update.message.reply_text(f"❌ حدث خطأ: {e}")
 
-    # تنظيف البيانات بعد التحميل
-    if user_id in user_data:
-        del user_data[user_id]
+    user_data.pop(user_id, None)
 
 def main():
     app = Application.builder().token(TOKEN).build()
