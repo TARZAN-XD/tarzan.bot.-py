@@ -7,37 +7,33 @@ import os
 TOKEN = "7468967312:AAGeEoeJaD1WarTcLhbRBmbil1kD-Mz3khE"
 
 logging.basicConfig(level=logging.INFO)
-
 user_data = {}
 
+# بدء البوت
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("تحميل فيديو", callback_data="download_video")],
-        [InlineKeyboardButton("تحميل صوت", callback_data="download_audio")]
+        [InlineKeyboardButton("تحميل فيديو", callback_data="video")],
+        [InlineKeyboardButton("تحميل صوت", callback_data="audio")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("أهلاً بك! اختر ما تريد:", reply_markup=reply_markup)
+    await update.message.reply_text("اختر ما تريد:", reply_markup=reply_markup)
 
+# التعامل مع الأزرار
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
-    if query.data == "download_video":
-        user_data[user_id] = "video"
-        await query.edit_message_text("✅ أرسل رابط الفيديو للتحميل.")
-    elif query.data == "download_audio":
-        user_data[user_id] = "audio"
-        await query.edit_message_text("✅ أرسل رابط الفيديو لاستخراج الصوت.")
+    user_data[query.from_user.id] = query.data
+    await query.edit_message_text(f"✅ أرسل الرابط الآن لتحميل {query.data}")
 
+# التعامل مع الرسائل النصية
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    text = update.message.text
-
     if user_id not in user_data:
-        await update.message.reply_text("❌ استخدم /start أولاً.")
+        await update.message.reply_text("❌ استخدم /start أولاً")
         return
 
     choice = user_data[user_id]
+    url = update.message.text
     await update.message.reply_text("⏳ جاري التحميل...")
 
     ydl_opts = {}
@@ -61,15 +57,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(text, download=True)
+            info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-        await update.message.reply_document(document=open(filename, "rb"))
-        os.remove(filename)  # حذف الملف بعد الإرسال لتوفير مساحة
+        await update.message.reply_document(open(filename, "rb"))
+        os.remove(filename)
     except Exception as e:
         await update.message.reply_text(f"❌ حدث خطأ: {e}")
 
     user_data.pop(user_id, None)
 
+# تهيئة وتشغيل البوت
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
