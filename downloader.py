@@ -1,64 +1,33 @@
 import os
-import sys
-import subprocess
-import shutil
-from pathlib import Path
+import yt_dlp
 
-def open_editor(path=None):
-    """
-    يفتح محرر النصوص للملف المحدد أو يفتح محرر فارغ.
-    يحاول استخدام $EDITOR أولاً، ثم يحاول محررات شائعة أو يفتح الملف بالبرنامج الافتراضي.
-    """
-    if path is None:
-        path = Path.cwd() / "untitled.txt"
+def download_media(url, folder="downloads", audio_only=False):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    
+    ydl_opts = {}
+    if audio_only:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': f'{folder}/%(title)s.%(ext)s',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
     else:
-        path = Path(path)
+        ydl_opts = {
+            'outtmpl': f'{folder}/%(title)s.%(ext)s',
+            'format': 'bestvideo+bestaudio/best',
+            'merge_output_format': 'mp4',
+        }
 
-    # تأكد من وجود الملف
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("")  # ينشئ ملف فارغ
-
-    # جرب $EDITOR أولاً
-    editor = os.environ.get("EDITOR")
-    if editor:
-        try:
-            subprocess.run([editor, str(path)])
-            return
-        except Exception:
-            pass
-
-    # تحقق من محررات شائعة في PATH
-    candidates = ["nano", "vim", "code", "gedit", "notepad", "kate"]
-    for cmd in candidates:
-        if shutil.which(cmd):
-            # على ويندوز notepad لا يحتاج args إضافية
-            try:
-                if cmd == "code":
-                    subprocess.run([cmd, str(path)])  # VSCode يفتح نافذة
-                else:
-                    subprocess.run([cmd, str(path)])
-                return
-            except Exception:
-                continue
-
-    # كحل أخير: افتح الملف بالتطبيق الافتراضي حسب النظام
-    try:
-        if sys.platform.startswith("linux"):
-            subprocess.run(["xdg-open", str(path)])
-        elif sys.platform == "darwin":
-            subprocess.run(["open", str(path)])
-        elif sys.platform.startswith("win"):
-            os.startfile(str(path))  # نوعاً ما لا يستخدم subprocess
-        else:
-            print("لا يوجد محرر معروف. الملف موجود في:", path)
-    except Exception as e:
-        print("فشل في فتح المحرر:", e)
-        print("يمكنك فتح الملف يدوياً:", path)
-
-if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument("file", nargs="?", help="اسم الملف لفتحه", default=None)
-    args = p.parse_args()
-    open_editor(args.file)
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    
+    # استرجاع اسم الملف
+    info_dict = yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=False)
+    title = info_dict.get('title', 'video')
+    ext = 'mp3' if audio_only else 'mp4'
+    return f"{folder}/{title}.{ext}"
